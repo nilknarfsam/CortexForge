@@ -12,6 +12,7 @@ import requests
 
 # Timeout curto para não travar a interface ao verificar disponibilidade.
 _DEFAULT_TIMEOUT = 5
+_GENERATE_TIMEOUT = 120
 
 
 class OllamaClient:
@@ -25,6 +26,23 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         # Modelo usado por generate(); a UI definirá na versão do chat.
         self.model: str | None = None
+
+    def debug_generate_payload(
+        self, prompt: str, model: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Retorna exatamente o JSON enviado ao endpoint /api/generate.
+
+        Args:
+            prompt: Texto do prompt.
+            model: Modelo Ollama; usa ``self.model`` se omitido.
+        """
+        resolved_model = model if model is not None else self.model
+        return {
+            "model": resolved_model or "",
+            "prompt": prompt,
+            "stream": False,
+        }
 
     def is_available(self) -> tuple[bool, str]:
         """
@@ -97,7 +115,6 @@ class OllamaClient:
         """
         Gera texto a partir de um prompt (API /api/generate).
 
-        Ainda não utilizado pela interface na v0.2; preparado para versões futuras.
         Usa o atributo ``model`` do cliente (nome do modelo no Ollama).
 
         Args:
@@ -112,15 +129,13 @@ class OllamaClient:
         if not self.model or not self.model.strip():
             return None, "Selecione um modelo antes de gerar."
 
+        payload = self.debug_generate_payload(prompt)
+
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                },
-                timeout=120,
+                json=payload,
+                timeout=_GENERATE_TIMEOUT,
             )
             response.raise_for_status()
             data: dict[str, Any] = response.json()
@@ -136,9 +151,29 @@ class OllamaClient:
         except requests.exceptions.Timeout:
             return None, "A geração demorou demais e foi cancelada por tempo limite."
         except requests.exceptions.HTTPError as exc:
-            status = exc.response.status_code if exc.response is not None else "?"
-            return None, f"O Ollama recusou a requisição (HTTP {status})."
+            http_response = exc.response
+            status_code = (
+                http_response.status_code if http_response is not None else 0
+            )
+            body = (http_response.text if http_response is not None else "") or ""
+            self._log_http_error(status_code, body)
+            self._log_generate_context(prompt, self.model)
+            return None, f"Erro HTTP {status_code}"
         except requests.exceptions.RequestException as exc:
             return None, f"Erro ao gerar resposta: {exc}"
         except (KeyError, TypeError, ValueError):
             return None, "Resposta inesperada do Ollama ao gerar texto."
+
+    @staticmethod
+    def _log_http_error(status_code: int, body: str) -> None:
+        """Registra status e corpo da resposta HTTP no terminal."""
+        print(f"STATUS\n{status_code}")
+        print(f"BODY\n{body}")
+
+    @staticmethod
+    def _log_generate_context(prompt: str, model: str | None) -> None:
+        """Registra modelo e trecho do prompt no terminal para diagnóstico."""
+        print(f"Modelo utilizado: {model or '(não definido)'}")
+        print(f"Tamanho do prompt: {len(prompt)} caracteres")
+        preview = prompt[:500]
+        print(f"Primeiros 500 caracteres do prompt:\n{preview}")
