@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -27,6 +28,7 @@ from core.config import (
     load_agent_prompt,
 )
 from core.ollama_client import OllamaClient
+from core.project_context import ProjectContext
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +37,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self._ollama_client = OllamaClient()
+        self._project_context: ProjectContext | None = None
 
         self._setup_window()
         self._build_ui()
@@ -42,7 +45,7 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         """Define título e tamanho inicial da janela."""
-        self.setWindowTitle("CortexForge v0.4")
+        self.setWindowTitle("CortexForge v0.5")
         self.resize(960, 640)
 
     def _build_ui(self) -> None:
@@ -112,13 +115,40 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        placeholder = QLabel("Nenhum projeto aberto.")
-        placeholder.setWordWrap(True)
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(placeholder)
+        open_btn = QPushButton("Abrir Pasta")
+        open_btn.clicked.connect(self._open_project_folder)
+        layout.addWidget(open_btn)
+
+        self._project_name_label = QLabel("Nenhum projeto aberto.")
+        self._project_name_label.setWordWrap(True)
+        self._project_name_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self._project_name_label)
+
+        self._project_path_label = QLabel("")
+        self._project_path_label.setWordWrap(True)
+        self._project_path_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._project_path_label.setStyleSheet("color: gray;")
+        layout.addWidget(self._project_path_label)
         layout.addStretch()
 
         return panel
+
+    def _open_project_folder(self) -> None:
+        """Abre diálogo para selecionar pasta e exibe nome e caminho no painel."""
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Abrir Pasta de Projeto",
+            "",
+        )
+        if not folder:
+            return
+
+        self._project_context = ProjectContext(folder)
+        self._project_name_label.setText(self._project_context.name)
+        self._project_path_label.setText(self._project_context.path)
+        self._append_system_message(
+            f"Projeto aberto: {self._project_context.name}"
+        )
 
     def _create_chat_area(self) -> QWidget:
         """Área central de conversa com campo de entrada na parte inferior."""
