@@ -21,15 +21,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.config import (
-    AGENT_LABELS,
-    DEFAULT_AGENT,
-    build_prompt,
-    load_agent_prompt,
-)
+from core.config import AGENT_LABELS, DEFAULT_AGENT, load_agent_prompt
 from core.ollama_client import OllamaClient
 from core.project_context import ProjectContext
 from core.project_scanner import ProjectScanResult, ProjectScanner
+from core.project_summary import ProjectSummaryBuilder, build_prompt_with_context
 from ui.ollama_worker import OllamaGenerateWorker
 
 # Bloco exibido no chat enquanto a geração está em andamento.
@@ -43,6 +39,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._ollama_client = OllamaClient()
         self._project_context: ProjectContext | None = None
+        self._project_summary: str | None = None
         self._generate_worker: OllamaGenerateWorker | None = None
         self._is_generating = False
 
@@ -52,7 +49,7 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         """Define título, tamanho e barra de status."""
-        self.setWindowTitle("CortexForge v0.7")
+        self.setWindowTitle("CortexForge v0.8")
         self.resize(960, 640)
         self.statusBar().showMessage("Pronto")
 
@@ -142,6 +139,16 @@ class MainWindow(QMainWindow):
         self._project_stats_label.setWordWrap(True)
         self._project_stats_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self._project_stats_label)
+
+        summary_title = QLabel("Resumo do Projeto")
+        summary_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(summary_title)
+
+        self._project_summary_label = QLabel("Nenhum resumo disponível.")
+        self._project_summary_label.setWordWrap(True)
+        self._project_summary_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._project_summary_label.setStyleSheet("color: gray;")
+        layout.addWidget(self._project_summary_label)
         layout.addStretch()
 
         return panel
@@ -162,6 +169,12 @@ class MainWindow(QMainWindow):
 
         scan = ProjectScanner(self._project_context.path).scan()
         self._project_stats_label.setText(self._format_scan_stats(scan))
+
+        self._project_summary = ProjectSummaryBuilder(
+            self._project_context.name,
+            self._project_context.path,
+        ).build(scan)
+        self._project_summary_label.setText(self._project_summary)
 
         self._append_system_message(
             f"Projeto aberto: {self._project_context.name} "
@@ -311,7 +324,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Erro")
             return
 
-        full_prompt = build_prompt(system_prompt, prompt)
+        full_prompt = build_prompt_with_context(
+            system_prompt,
+            self._project_summary,
+            prompt,
+        )
 
         self._append_chat("Você", prompt)
         self._message_input.clear()

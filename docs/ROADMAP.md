@@ -22,11 +22,11 @@ Planejamento por versões. Escopo sujeito a ajustes conforme o repositório evol
 - Ignora `.git`, `__pycache__`, `node_modules`, etc.
 - Sem leitura de conteúdo nem envio ao Ollama
 
-## v0.8 — Contexto automático
+## v0.8 — Contexto automático ✅
 
-- Incluir trechos ou resumo do projeto no prompt enviado ao Ollama
-- Limites de tamanho para caber no contexto do modelo local
-- Integração entre `ProjectContext`, scanner e `build_prompt()`
+- Resumo textual via `ProjectSummaryBuilder` (dados do scanner)
+- Prompt com `CONTEXTO DO PROJETO` e `PERGUNTA DO USUÁRIO`
+- Resumo exibido no painel lateral; armazenado em memória
 
 ## v0.9 — Melhoria visual
 

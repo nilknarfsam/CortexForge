@@ -29,13 +29,19 @@ O CortexForge usa **perfis de agente** definidos em arquivos de texto. Cada perf
 
 1. O usuário seleciona o agente no ComboBox **Agente**.
 2. Ao pressionar Enter, `load_agent_prompt()` lê o `.txt` correspondente.
-3. `build_prompt()` concatena:
+3. `build_prompt_with_context()` concatena (com projeto aberto):
 
    ```
-   <conteúdo do architect.txt | coder.txt | reviewer.txt>
+   <prompt do agente>
 
+   CONTEXTO DO PROJETO
+   <resumo do scanner>
+
+   PERGUNTA DO USUÁRIO
    <mensagem do usuário>
    ```
+
+   Sem projeto aberto, apenas agente + mensagem.
 
 4. O texto combinado é enviado a `OllamaClient.generate()`.
 

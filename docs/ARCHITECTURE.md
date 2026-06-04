@@ -1,6 +1,6 @@
 # Arquitetura do CortexForge
 
-Visão da estrutura atual do projeto (v0.7) e do fluxo de dados.
+Visão da estrutura atual do projeto (v0.8) e do fluxo de dados.
 
 ## Estrutura de pastas
 
@@ -13,7 +13,8 @@ CortexForge/
 │   ├── config.py
 │   ├── ollama_client.py
 │   ├── project_context.py
-│   └── project_scanner.py
+│   ├── project_scanner.py
+│   └── project_summary.py
 ├── ui/
 │   ├── main_window.py     # Interface principal
 │   └── ollama_worker.py   # QThread para generate()
@@ -60,7 +61,8 @@ Configuração central:
 - `DEFAULT_AGENT` — agente selecionado ao iniciar (`coder`)
 - `AGENT_FILES` / `AGENT_LABELS` — mapeamento agente → arquivo / rótulo UI
 - `load_agent_prompt(agent_id)` — lê `agents/<nome>.txt`
-- `build_prompt(system, user)` — concatena prompt do agente + mensagem
+- `load_agent_prompt()` — lê perfis em `agents/`
+- `build_prompt()` — legado agente + mensagem (substituído na UI por `build_prompt_with_context`)
 
 ### `agents/*.txt`
 
@@ -73,7 +75,7 @@ Representa a pasta de projeto selecionada:
 - `name` — nome da pasta (último segmento do caminho)
 - `path` — caminho absoluto
 
-Na v0.5 armazena nome e caminho. Na v0.7 o painel exibe estatísticas via `ProjectScanner`; ainda não envia contexto ao Ollama.
+Na v0.5 armazena nome e caminho. Na v0.7+ o painel exibe estatísticas e resumo; na v0.8 o resumo entra no prompt enviado ao Ollama.
 
 ### `core/project_scanner.py`
 
@@ -85,6 +87,22 @@ Na v0.5 armazena nome e caminho. Na v0.7 o painel exibe estatísticas via `Proje
 - tamanho total em bytes
 
 Ignora pastas comuns como `.git` e `__pycache__`. Execução síncrona na thread da UI ao abrir pasta.
+
+### `core/project_summary.py`
+
+`ProjectSummaryBuilder` transforma `ProjectScanResult` em texto (nome, caminho, contagens, flags, tamanho). O resumo fica em memória na `MainWindow` (`_project_summary`). `build_prompt_with_context()` monta:
+
+```
+<prompt do agente>
+
+CONTEXTO DO PROJETO
+<resumo>
+
+PERGUNTA DO USUÁRIO
+<mensagem>
+```
+
+Se não houver projeto aberto, apenas o prompt do agente e a pergunta são enviados (formato anterior).
 
 ## Fluxo atual do prompt
 
@@ -100,7 +118,7 @@ sequenceDiagram
     MW->>MW: Exibe [Você]
     MW->>CFG: load_agent_prompt(agent_id)
     CFG-->>MW: system_prompt
-    MW->>CFG: build_prompt(system, mensagem)
+    MW->>CFG: build_prompt_with_context(agent, resumo?, mensagem)
     CFG-->>MW: full_prompt
     MW->>OC: model = ComboBox
     MW->>MW: Exibe Gerando resposta...
@@ -118,7 +136,7 @@ sequenceDiagram
 - Não há histórico de conversa: cada envio é independente.
 - Não há streaming: resposta única após conclusão da requisição.
 - A requisição roda em thread separada; a janela permanece responsiva.
-- O contexto de pasta (v0.5) ainda **não** entra no prompt.
+- Com projeto aberto, o resumo do scanner entra no prompt; conteúdo dos arquivos **não** é lido.
 
 ## Dependências
 

@@ -8,7 +8,15 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Planejado
 
-- Contexto automático no prompt (v0.8)
+- Melhorias visuais e refinamentos (v0.9)
+
+## [0.8.0] - 2026-06-04
+
+### Adicionado
+
+- `ProjectSummaryBuilder` e resumo em memória (`core/project_summary.py`)
+- Contexto automático no prompt: `CONTEXTO DO PROJETO` + `PERGUNTA DO USUÁRIO`
+- Seção **Resumo do Projeto** no painel lateral
 
 ## [0.7.0] - 2026-06-04
 
