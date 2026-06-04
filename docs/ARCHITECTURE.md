@@ -1,6 +1,6 @@
 # Arquitetura do CortexForge
 
-Visão da estrutura atual do projeto (v0.5) e do fluxo de dados.
+Visão da estrutura atual do projeto (v0.6) e do fluxo de dados.
 
 ## Estrutura de pastas
 
@@ -14,7 +14,8 @@ CortexForge/
 │   ├── ollama_client.py
 │   └── project_context.py
 ├── ui/
-│   └── main_window.py     # Interface principal
+│   ├── main_window.py     # Interface principal
+│   └── ollama_worker.py   # QThread para generate()
 └── docs/                  # Documentação
 ```
 
@@ -35,7 +36,11 @@ Responsável por toda a interface:
 | Área central      | Chat (`QTextEdit`)                               |
 | Inferior          | Campo de mensagem (`QLineEdit`)                  |
 
-Orquestra chamadas a `OllamaClient`, `config` e `ProjectContext`. Não contém lógica HTTP direta.
+Orquestra chamadas a `OllamaClient`, `config` e `ProjectContext`. A geração de respostas é delegada a `OllamaGenerateWorker` (QThread) para não bloquear a UI. Barra de status inferior exibe o estado da operação.
+
+### `ui/ollama_worker.py`
+
+`QThread` que instancia `OllamaClient`, define o modelo e chama `generate()` em background. Emite sinal `finished(response, error)` para a thread principal atualizar o chat.
 
 ### `core/ollama_client.py`
 
@@ -86,11 +91,13 @@ sequenceDiagram
     MW->>CFG: build_prompt(system, mensagem)
     CFG-->>MW: full_prompt
     MW->>OC: model = ComboBox
+    MW->>MW: Exibe Gerando resposta...
+    MW->>MW: QThread OllamaGenerateWorker
     MW->>OC: generate(full_prompt)
     OC->>OL: POST /api/generate
     OL-->>OC: response
-    OC-->>MW: texto ou erro
-    MW->>MW: Exibe [CortexForge]
+    OC-->>MW: finished (sinal)
+    MW->>MW: Substitui bloco por [CortexForge]
 ```
 
 **Observações:**
@@ -98,6 +105,7 @@ sequenceDiagram
 - O chat exibe apenas a mensagem do usuário, não o system prompt completo.
 - Não há histórico de conversa: cada envio é independente.
 - Não há streaming: resposta única após conclusão da requisição.
+- A requisição roda em thread separada; a janela permanece responsiva.
 - O contexto de pasta (v0.5) ainda **não** entra no prompt.
 
 ## Dependências

@@ -48,7 +48,7 @@ Certifique-se de que o Ollama está ativo antes de enviar mensagens.
 3. Escolha um **agente**: Architect, Coder ou Reviewer.
 4. (Opcional, v0.5+) No painel **Projetos**, clique em **Abrir Pasta** e selecione o diretório do seu projeto.
 5. Digite sua mensagem no campo inferior e pressione **Enter**.
-6. A resposta aparecerá como `[CortexForge]` no chat.
+6. A resposta aparecerá como `[CortexForge]` no chat (geração assíncrona; a barra inferior mostra o status).
 
 ## Integração com Ollama
 

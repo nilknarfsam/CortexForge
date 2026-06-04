@@ -29,6 +29,10 @@ from core.config import (
 )
 from core.ollama_client import OllamaClient
 from core.project_context import ProjectContext
+from ui.ollama_worker import OllamaGenerateWorker
+
+# Bloco exibido no chat enquanto a geração está em andamento.
+_PENDING_RESPONSE_BLOCK = "[CortexForge]\nGerando resposta..."
 
 
 class MainWindow(QMainWindow):
@@ -38,15 +42,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._ollama_client = OllamaClient()
         self._project_context: ProjectContext | None = None
+        self._generate_worker: OllamaGenerateWorker | None = None
+        self._is_generating = False
 
         self._setup_window()
         self._build_ui()
         self._refresh_ollama_models()
 
     def _setup_window(self) -> None:
-        """Define título e tamanho inicial da janela."""
-        self.setWindowTitle("CortexForge v0.5")
+        """Define título, tamanho e barra de status."""
+        self.setWindowTitle("CortexForge v0.6")
         self.resize(960, 640)
+        self.statusBar().showMessage("Pronto")
 
     def _build_ui(self) -> None:
         """Monta o layout: barra Ollama, projetos | chat + entrada."""
@@ -97,14 +104,14 @@ class MainWindow(QMainWindow):
             self._agent_combo.setCurrentIndex(default_index)
         layout.addWidget(self._agent_combo)
 
-        refresh_btn = QPushButton("Atualizar")
-        refresh_btn.clicked.connect(self._refresh_ollama_models)
-        layout.addWidget(refresh_btn)
+        self._refresh_btn = QPushButton("Atualizar")
+        self._refresh_btn.clicked.connect(self._refresh_ollama_models)
+        layout.addWidget(self._refresh_btn)
 
         return bar
 
     def _create_projects_panel(self) -> QFrame:
-        """Painel lateral para listagem de projetos (placeholder na v0.1)."""
+        """Painel lateral para listagem de projetos."""
         panel = QFrame()
         panel.setFrameShape(QFrame.Shape.StyledPanel)
         panel.setMinimumWidth(220)
@@ -115,9 +122,9 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        open_btn = QPushButton("Abrir Pasta")
-        open_btn.clicked.connect(self._open_project_folder)
-        layout.addWidget(open_btn)
+        self._open_project_btn = QPushButton("Abrir Pasta")
+        self._open_project_btn.clicked.connect(self._open_project_folder)
+        layout.addWidget(self._open_project_btn)
 
         self._project_name_label = QLabel("Nenhum projeto aberto.")
         self._project_name_label.setWordWrap(True)
@@ -169,13 +176,13 @@ class MainWindow(QMainWindow):
         self._message_input.returnPressed.connect(self._send_message)
         layout.addWidget(self._message_input)
 
-        # Posição no documento onde começa o bloco "Pensando..." (para remoção).
-        self._thinking_start = 0
-
         return container
 
     def _refresh_ollama_models(self) -> None:
         """Verifica o Ollama, atualiza o ComboBox e informa o usuário no chat."""
+        if self._is_generating:
+            return
+
         self._model_combo.clear()
         self._model_combo.setEnabled(False)
 
@@ -206,9 +213,35 @@ class MainWindow(QMainWindow):
         """Adiciona uma mensagem formatada ao histórico visível do chat."""
         self._chat_display.append(f"[{speaker}]\n{text}")
 
+    def _show_generating_message(self) -> None:
+        """Exibe o bloco temporário de geração no chat."""
+        self._append_chat("CortexForge", "Gerando resposta...")
+
+    def _finalize_generating_message(self, content: str) -> None:
+        """Substitui o bloco 'Gerando resposta...' pelo texto final."""
+        text = self._chat_display.toPlainText()
+        if _PENDING_RESPONSE_BLOCK not in text:
+            self._append_chat("CortexForge", content)
+            return
+
+        updated = text.rsplit(_PENDING_RESPONSE_BLOCK, 1)[0] + (
+            f"[CortexForge]\n{content}"
+        )
+        self._chat_display.setPlainText(updated)
+        cursor = self._chat_display.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        self._chat_display.setTextCursor(cursor)
+
+    def _set_generation_ui_busy(self, busy: bool) -> None:
+        """Habilita ou desabilita controles durante a geração assíncrona."""
+        self._is_generating = busy
+        self._message_input.setEnabled(not busy)
+        self._open_project_btn.setEnabled(not busy)
+        self._refresh_btn.setEnabled(not busy)
+
     def _send_message(self) -> None:
-        """Envia o texto digitado ao Ollama e exibe a resposta no chat."""
-        if not self._message_input.isEnabled():
+        """Envia o texto digitado ao Ollama de forma assíncrona."""
+        if self._is_generating:
             return
 
         prompt = self._message_input.text().strip()
@@ -223,58 +256,48 @@ class MainWindow(QMainWindow):
             or model in invalid_labels
         ):
             self._append_chat("CortexForge", "Erro: Selecione um modelo válido.")
+            self.statusBar().showMessage("Erro")
             return
-
-        self._append_chat("Você", prompt)
-        self._message_input.clear()
-
-        self._message_input.setEnabled(False)
-        self._show_thinking()
 
         agent_id = self._agent_combo.currentData()
         if not agent_id:
-            self._hide_thinking()
             self._append_chat("CortexForge", "Erro: Selecione um agente válido.")
-            self._message_input.setEnabled(True)
-            self._message_input.setFocus()
+            self.statusBar().showMessage("Erro")
             return
 
         system_prompt, agent_error = load_agent_prompt(agent_id)
         if agent_error:
-            self._hide_thinking()
             self._append_chat("CortexForge", f"Erro: {agent_error}")
-            self._message_input.setEnabled(True)
-            self._message_input.setFocus()
+            self.statusBar().showMessage("Erro")
             return
 
         full_prompt = build_prompt(system_prompt, prompt)
 
-        self._ollama_client.model = model
-        response, error = self._ollama_client.generate(full_prompt)
+        self._append_chat("Você", prompt)
+        self._message_input.clear()
+        self._show_generating_message()
 
-        self._hide_thinking()
+        self._set_generation_ui_busy(True)
+        self.statusBar().showMessage("Gerando resposta...")
+
+        worker = OllamaGenerateWorker(model, full_prompt, self)
+        worker.finished.connect(self._on_generate_finished)
+        worker.finished.connect(worker.deleteLater)
+        self._generate_worker = worker
+        worker.start()
+
+    def _on_generate_finished(
+        self, response: object, error: object
+    ) -> None:
+        """Atualiza o chat e a barra de status quando a thread termina."""
+        self._generate_worker = None
 
         if error:
-            self._append_chat("CortexForge", f"Erro: {error}")
+            self._finalize_generating_message(f"Erro: {error}")
+            self.statusBar().showMessage("Erro")
         else:
-            self._append_chat("CortexForge", response or "")
+            self._finalize_generating_message(str(response or ""))
+            self.statusBar().showMessage("Pronto")
 
-        self._message_input.setEnabled(True)
+        self._set_generation_ui_busy(False)
         self._message_input.setFocus()
-
-    def _show_thinking(self) -> None:
-        """Exibe indicador de espera enquanto o Ollama gera a resposta."""
-        cursor = self._chat_display.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self._thinking_start = cursor.position()
-        self._append_chat("CortexForge", "Pensando...")
-
-    def _hide_thinking(self) -> None:
-        """Remove o bloco 'Pensando...' antes de mostrar a resposta final."""
-        cursor = self._chat_display.textCursor()
-        cursor.setPosition(self._thinking_start)
-        cursor.movePosition(
-            QTextCursor.MoveOperation.End,
-            QTextCursor.MoveMode.KeepAnchor,
-        )
-        cursor.removeSelectedText()

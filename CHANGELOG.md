@@ -11,6 +11,19 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 - Scanner simples de projeto (v0.6)
 - Contexto automático no prompt (v0.7)
 
+## [0.6.0] - 2026-06-04
+
+### Adicionado
+
+- Geração assíncrona com `QThread` (`ui/ollama_worker.py`)
+- Barra de status inferior (Pronto / Gerando resposta... / Erro)
+- Indicador no chat: `[CortexForge] Gerando resposta...` com substituição ao concluir
+
+### Alterado
+
+- Controles desabilitados durante geração (entrada, Abrir Pasta, Atualizar)
+- Removida lógica de remoção de texto via `QTextCursor` (`Pensando...`)
+
 ## [0.5.0] - 2026-06-04
 
 ### Adicionado
