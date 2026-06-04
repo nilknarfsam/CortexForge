@@ -46,7 +46,7 @@ Certifique-se de que o Ollama está ativo antes de enviar mensagens.
 1. Abra a aplicação e aguarde a verificação do Ollama na área de chat.
 2. Selecione um **modelo** na barra superior (use **Atualizar** para recarregar a lista).
 3. Escolha um **agente**: Architect, Coder ou Reviewer.
-4. (Opcional, v0.5+) No painel **Projetos**, clique em **Abrir Pasta** e selecione o diretório do seu projeto.
+4. (Opcional) No painel **Projetos**, clique em **Abrir Pasta** — o scanner exibe estatísticas (arquivos, pastas, tamanho, etc.).
 5. Digite sua mensagem no campo inferior e pressione **Enter**.
 6. A resposta aparecerá como `[CortexForge]` no chat (geração assíncrona; a barra inferior mostra o status).
 

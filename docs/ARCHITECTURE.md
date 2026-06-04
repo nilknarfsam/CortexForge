@@ -1,6 +1,6 @@
 # Arquitetura do CortexForge
 
-Visão da estrutura atual do projeto (v0.6) e do fluxo de dados.
+Visão da estrutura atual do projeto (v0.7) e do fluxo de dados.
 
 ## Estrutura de pastas
 
@@ -12,7 +12,8 @@ CortexForge/
 ├── core/                  # Lógica de negócio
 │   ├── config.py
 │   ├── ollama_client.py
-│   └── project_context.py
+│   ├── project_context.py
+│   └── project_scanner.py
 ├── ui/
 │   ├── main_window.py     # Interface principal
 │   └── ollama_worker.py   # QThread para generate()
@@ -72,7 +73,18 @@ Representa a pasta de projeto selecionada:
 - `name` — nome da pasta (último segmento do caminho)
 - `path` — caminho absoluto
 
-Na v0.5 apenas armazena e exibe; não escaneia arquivos nem envia contexto ao Ollama.
+Na v0.5 armazena nome e caminho. Na v0.7 o painel exibe estatísticas via `ProjectScanner`; ainda não envia contexto ao Ollama.
+
+### `core/project_scanner.py`
+
+`ProjectScanner` percorre a árvore de diretórios (sem abrir conteúdo) e retorna `ProjectScanResult`:
+
+- totais de pastas e arquivos
+- contagens por extensão (`.py`, `.md`, `.txt`)
+- existência de `README.md`, `requirements.txt`, `pyproject.toml` na raiz
+- tamanho total em bytes
+
+Ignora pastas comuns como `.git` e `__pycache__`. Execução síncrona na thread da UI ao abrir pasta.
 
 ## Fluxo atual do prompt
 

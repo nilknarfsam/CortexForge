@@ -8,8 +8,15 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Planejado
 
-- Scanner simples de projeto (v0.6)
-- Contexto automático no prompt (v0.7)
+- Contexto automático no prompt (v0.8)
+
+## [0.7.0] - 2026-06-04
+
+### Adicionado
+
+- `ProjectScanner` e `ProjectScanResult` em `core/project_scanner.py`
+- Estatísticas no painel de projetos ao abrir pasta (pastas, arquivos, extensões, flags, tamanho)
+- Varredura sem leitura de conteúdo; pastas `.git`, `__pycache__`, etc. ignoradas
 
 ## [0.6.0] - 2026-06-04
 

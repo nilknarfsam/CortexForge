@@ -15,12 +15,12 @@ Planejamento por versões. Escopo sujeito a ajustes conforme o repositório evol
 - Barra de status e bloco `Gerando resposta...` no chat
 - UI responsiva durante a inferência
 
-## v0.7 — Scanner simples de projeto
+## v0.7 — Scanner simples de projeto ✅
 
-- Varredura básica da árvore de arquivos da pasta aberta
-- Ignorar pastas comuns (`.git`, `__pycache__`, `node_modules`, etc.)
-- Listar ou resumir arquivos relevantes na UI ou em estrutura interna
-- Ainda sem enviar conteúdo completo ao modelo
+- `ProjectScanner` com estatísticas (pastas, arquivos, extensões, tamanho)
+- Exibição automática no painel ao abrir pasta
+- Ignora `.git`, `__pycache__`, `node_modules`, etc.
+- Sem leitura de conteúdo nem envio ao Ollama
 
 ## v0.8 — Contexto automático
 

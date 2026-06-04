@@ -29,6 +29,7 @@ from core.config import (
 )
 from core.ollama_client import OllamaClient
 from core.project_context import ProjectContext
+from core.project_scanner import ProjectScanResult, ProjectScanner
 from ui.ollama_worker import OllamaGenerateWorker
 
 # Bloco exibido no chat enquanto a geração está em andamento.
@@ -51,7 +52,7 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         """Define título, tamanho e barra de status."""
-        self.setWindowTitle("CortexForge v0.6")
+        self.setWindowTitle("CortexForge v0.7")
         self.resize(960, 640)
         self.statusBar().showMessage("Pronto")
 
@@ -136,6 +137,11 @@ class MainWindow(QMainWindow):
         self._project_path_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._project_path_label.setStyleSheet("color: gray;")
         layout.addWidget(self._project_path_label)
+
+        self._project_stats_label = QLabel("")
+        self._project_stats_label.setWordWrap(True)
+        self._project_stats_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self._project_stats_label)
         layout.addStretch()
 
         return panel
@@ -153,9 +159,43 @@ class MainWindow(QMainWindow):
         self._project_context = ProjectContext(folder)
         self._project_name_label.setText(self._project_context.name)
         self._project_path_label.setText(self._project_context.path)
+
+        scan = ProjectScanner(self._project_context.path).scan()
+        self._project_stats_label.setText(self._format_scan_stats(scan))
+
         self._append_system_message(
-            f"Projeto aberto: {self._project_context.name}"
+            f"Projeto aberto: {self._project_context.name} "
+            f"({scan.total_files} arquivos, {scan.total_folders} pastas)"
         )
+
+    def _format_scan_stats(self, scan: ProjectScanResult) -> str:
+        """Formata estatísticas do scanner para exibição no painel."""
+        size = self._format_size(scan.total_size_bytes)
+        yes_no = lambda value: "Sim" if value else "Não"
+
+        return (
+            "Estatísticas:\n"
+            f"Pastas: {scan.total_folders}\n"
+            f"Arquivos: {scan.total_files}\n"
+            f".py: {scan.py_files}\n"
+            f".md: {scan.md_files}\n"
+            f".txt: {scan.txt_files}\n"
+            f"README.md: {yes_no(scan.has_readme)}\n"
+            f"requirements.txt: {yes_no(scan.has_requirements)}\n"
+            f"pyproject.toml: {yes_no(scan.has_pyproject)}\n"
+            f"Tamanho total: {size}"
+        )
+
+    @staticmethod
+    def _format_size(size_bytes: int) -> str:
+        """Converte bytes em texto legível (B, KB, MB, GB)."""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        if size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        if size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
     def _create_chat_area(self) -> QWidget:
         """Área central de conversa com campo de entrada na parte inferior."""
