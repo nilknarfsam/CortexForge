@@ -1,6 +1,6 @@
 # Arquitetura do CortexForge
 
-Visão da estrutura atual do projeto (v0.9) e do fluxo de dados.
+Visão da estrutura atual do projeto (v1.0) e do fluxo de dados.
 
 ## Estrutura de pastas
 
@@ -14,10 +14,12 @@ CortexForge/
 │   ├── ollama_client.py
 │   ├── project_context.py
 │   ├── project_scanner.py
-│   └── project_summary.py
+│   ├── project_summary.py
+│   └── proposed_changes.py
 ├── ui/
 │   ├── main_window.py     # Interface principal
-│   └── ollama_worker.py   # QThread para generate()
+│   ├── ollama_worker.py   # QThread para generate()
+│   └── proposal_preview_dialog.py
 └── docs/                  # Documentação
 ```
 
@@ -34,7 +36,7 @@ Responsável por toda a interface:
 | Área              | Componentes                                      |
 |-------------------|--------------------------------------------------|
 | Barra superior    | Modelo (ComboBox), Agente (ComboBox), Atualizar  |
-| Painel esquerdo   | Projetos, botão Abrir Pasta, info da pasta       |
+| Painel esquerdo   | Projetos, Propostas, Abrir Pasta, resumo         |
 | Área central      | Chat (`QTextEdit`)                               |
 | Inferior          | Campo de mensagem (`QLineEdit`)                  |
 
@@ -110,6 +112,14 @@ PERGUNTA DO USUÁRIO
 ```
 
 Se não houver projeto aberto, apenas o prompt do agente e a pergunta são enviados (formato anterior).
+
+### `core/proposed_changes.py`
+
+`ProposedChangesParser` detecta `# FILE:` e `Arquivo:` na resposta do modelo e produz `ProposedFile` em memória. `CREATE_FILE` vs `MODIFY_FILE` conforme o arquivo existe no projeto aberto. Sem escrita em disco.
+
+### `ui/proposal_preview_dialog.py`
+
+Diálogo somente leitura com **Copiar Conteúdo** para a área de transferência.
 
 ## Fluxo atual do prompt
 

@@ -37,12 +37,16 @@ Planejamento por versões. Escopo sujeito a ajustes conforme o repositório evol
 
 - Refinements de layout e painel de projetos
 
-## v1.0 — Primeira versão utilizável
+## v1.0 — Propostas de arquivos ✅
 
-- Fluxo estável: abrir projeto → escolher agente/modelo → chat com contexto útil
-- Documentação e CHANGELOG alinhados
-- Experiência consistente para uso diário em desenvolvimento local
-- Critérios de “utilizável” definidos e validados manualmente
+- Painel **Propostas**, parse de `# FILE:` / `Arquivo:`
+- Visualização somente leitura + copiar conteúdo
+- Sem aplicar alterações no disco automaticamente
+
+## v1.1 — Aplicação de propostas (planejado)
+
+- Diff visual e confirmação antes de gravar
+- Botões aplicar / descartar
 
 ## Fora do escopo imediato
 

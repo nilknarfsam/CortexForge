@@ -17,6 +17,7 @@ O CortexForge é uma aplicação desktop com:
 - **Barra superior** — modelo Ollama, agente ativo e atualização de modelos
 - **Barra de status** — Pronto / spinner + Gerando... / Erro
 - **Streaming** — respostas do Ollama exibidas token a token no chat
+- **Propostas** — arquivos sugeridos pelo modelo, revisão antes de gravar ([docs/PROPOSED_CHANGES.md](docs/PROPOSED_CHANGES.md))
 
 Toda a inferência ocorre na máquina do usuário, através do Ollama em `http://localhost:11434`.
 
@@ -114,6 +115,7 @@ Detalhes: **[docs/AGENTS.md](docs/AGENTS.md)**
 | [QUICK_START.md](docs/QUICK_START.md) | Primeiros passos |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Solução de problemas |
 | [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Estrutura interna e desenvolvimento |
+| [PROPOSED_CHANGES.md](docs/PROPOSED_CHANGES.md) | Fluxo de propostas de arquivos |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos e fluxo do prompt |
 | [AGENTS.md](docs/AGENTS.md) | Perfis de agentes |
 | [ROADMAP.md](docs/ROADMAP.md) | Versões planejadas |

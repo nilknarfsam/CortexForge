@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QPushButton,
     QTextEdit,
@@ -26,7 +28,9 @@ from core.ollama_client import OllamaClient
 from core.project_context import ProjectContext
 from core.project_scanner import ProjectScanResult, ProjectScanner
 from core.project_summary import ProjectSummaryBuilder, build_prompt_with_context
+from core.proposed_changes import ProposedChangesParser, ProposedFile
 from ui.ollama_worker import OllamaGenerateWorker
+from ui.proposal_preview_dialog import ProposalPreviewDialog
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -39,6 +43,8 @@ class MainWindow(QMainWindow):
         self._ollama_client = OllamaClient()
         self._project_context: ProjectContext | None = None
         self._project_summary: str | None = None
+        self._proposed_files: list[ProposedFile] = []
+        self._current_response_text = ""
         self._generate_worker: OllamaGenerateWorker | None = None
         self._is_generating = False
         self._spinner_index = 0
@@ -53,8 +59,8 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         """Define título, tamanho e barra de status."""
-        self.setWindowTitle("CortexForge v0.9")
-        self.resize(960, 640)
+        self.setWindowTitle("CortexForge v1.0")
+        self.resize(1024, 680)
         self.statusBar().showMessage("Pronto")
 
     def _build_ui(self) -> None:
@@ -75,8 +81,7 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(8)
 
-        projects_panel = self._create_projects_panel()
-        root_layout.addWidget(projects_panel)
+        root_layout.addWidget(self._create_left_sidebar())
 
         chat_area = self._create_chat_area()
         root_layout.addWidget(chat_area, stretch=1)
@@ -112,12 +117,22 @@ class MainWindow(QMainWindow):
 
         return bar
 
+    def _create_left_sidebar(self) -> QWidget:
+        """Coluna esquerda: projetos e propostas de arquivos."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self._create_projects_panel())
+        layout.addWidget(self._create_proposals_panel(), stretch=1)
+        container.setMinimumWidth(220)
+        container.setMaximumWidth(300)
+        return container
+
     def _create_projects_panel(self) -> QFrame:
-        """Painel lateral para listagem de projetos."""
+        """Painel para pasta de projeto aberta."""
         panel = QFrame()
         panel.setFrameShape(QFrame.Shape.StyledPanel)
-        panel.setMinimumWidth(220)
-        panel.setMaximumWidth(280)
 
         layout = QVBoxLayout(panel)
         title = QLabel("Projetos")
@@ -153,7 +168,26 @@ class MainWindow(QMainWindow):
         self._project_summary_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._project_summary_label.setStyleSheet("color: gray;")
         layout.addWidget(self._project_summary_label)
-        layout.addStretch()
+        return panel
+
+    def _create_proposals_panel(self) -> QFrame:
+        """Painel lateral de propostas de arquivos (somente em memória)."""
+        panel = QFrame()
+        panel.setFrameShape(QFrame.Shape.StyledPanel)
+
+        layout = QVBoxLayout(panel)
+        title = QLabel("Propostas")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        self._proposals_empty_label = QLabel("Nenhuma proposta.")
+        self._proposals_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._proposals_empty_label.setStyleSheet("color: gray;")
+        layout.addWidget(self._proposals_empty_label)
+
+        self._proposals_list = QListWidget()
+        self._proposals_list.itemClicked.connect(self._on_proposal_clicked)
+        layout.addWidget(self._proposals_list, stretch=1)
 
         return panel
 
@@ -272,6 +306,7 @@ class MainWindow(QMainWindow):
 
     def _begin_streaming_response(self) -> None:
         """Abre o bloco [CortexForge] no chat; tokens serão inseridos ao final."""
+        self._current_response_text = ""
         self._append_chat("CortexForge", "")
 
     def _append_stream_token(self, token: str) -> None:
@@ -362,15 +397,56 @@ class MainWindow(QMainWindow):
     def _on_token_received(self, token: str) -> None:
         """Acrescenta cada token ao bloco de resposta em andamento."""
         if token:
+            self._current_response_text += token
             self._append_stream_token(token)
 
     def _on_generation_finished(self) -> None:
-        """Finaliza geração com sucesso."""
+        """Finaliza geração com sucesso e detecta arquivos propostos."""
         self._generate_worker = None
         self._stop_spinner()
+        self._process_proposed_files(self._current_response_text)
         self.statusBar().showMessage("Pronto")
         self._set_generation_ui_busy(False)
         self._message_input.setFocus()
+
+    def _process_proposed_files(self, response_text: str) -> None:
+        """Extrai propostas da resposta e atualiza o painel (sem gravar em disco)."""
+        project_root = (
+            self._project_context.path if self._project_context else None
+        )
+        parser = ProposedChangesParser(project_root)
+        new_proposals = parser.parse(response_text)
+        if not new_proposals:
+            return
+
+        by_path = {item.relative_path: item for item in self._proposed_files}
+        for proposal in new_proposals:
+            by_path[proposal.relative_path] = proposal
+        self._proposed_files = list(by_path.values())
+        self._refresh_proposals_list()
+        self._append_system_message(
+            f"{len(new_proposals)} proposta(s) de arquivo detectada(s)."
+        )
+
+    def _refresh_proposals_list(self) -> None:
+        """Atualiza a lista visual de propostas."""
+        self._proposals_list.clear()
+        has_items = bool(self._proposed_files)
+        self._proposals_empty_label.setVisible(not has_items)
+
+        for proposal in sorted(self._proposed_files, key=lambda p: p.file_name):
+            item = QListWidgetItem(proposal.file_name)
+            item.setData(Qt.ItemDataRole.UserRole, proposal)
+            item.setToolTip(
+                f"{proposal.action_type.value}\n{proposal.relative_path}"
+            )
+            self._proposals_list.addItem(item)
+
+    def _on_proposal_clicked(self, item: QListWidgetItem) -> None:
+        """Abre visualização somente leitura da proposta selecionada."""
+        proposal = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(proposal, ProposedFile):
+            ProposalPreviewDialog(proposal, self).exec()
 
     def _on_generation_error(self, error: str) -> None:
         """Exibe erro no fluxo de streaming."""

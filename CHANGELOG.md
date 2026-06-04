@@ -8,7 +8,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Planejado
 
-- Primeira versão utilizável (v1.0)
+- Diff e aplicação de propostas no disco
+
+## [1.0.0] - 2026-06-04
+
+### Adicionado
+
+- Fluxo de **propostas de arquivos** (`ProposedFile`, `ProposedChangesParser`)
+- Painel lateral **Propostas** com detecção de `# FILE:` e `Arquivo:`
+- `ProposalPreviewDialog` (visualização somente leitura + Copiar Conteúdo)
+- Sem escrita automática no disco
 
 ## [0.9.0] - 2026-06-04
 
