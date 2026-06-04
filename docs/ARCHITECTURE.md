@@ -1,6 +1,6 @@
 # Arquitetura do CortexForge
 
-Visão da estrutura atual do projeto (v0.8) e do fluxo de dados.
+Visão da estrutura atual do projeto (v0.9) e do fluxo de dados.
 
 ## Estrutura de pastas
 
@@ -42,7 +42,13 @@ Orquestra chamadas a `OllamaClient`, `config` e `ProjectContext`. A geração de
 
 ### `ui/ollama_worker.py`
 
-`QThread` que instancia `OllamaClient`, define o modelo e chama `generate()` em background. Emite sinal `finished(response, error)` para a thread principal atualizar o chat.
+`QThread` que chama `generate(prompt, stream=True)` e emite:
+
+- `token_received(str)` — cada fragmento da resposta
+- `generation_finished()` — sucesso
+- `generation_error(str)` — falha
+
+A UI insere tokens no final do `QTextEdit` sem reconstruir o histórico.
 
 ### `core/ollama_client.py`
 
@@ -50,7 +56,8 @@ Cliente HTTP para o Ollama (`http://localhost:11434`):
 
 - `is_available()` — verifica se o serviço responde
 - `list_models()` — lista modelos instalados
-- `generate(prompt)` — envia prompt ao modelo definido em `client.model`
+- `generate(prompt, stream=False)` — resposta completa (tupla)
+- `generate(prompt, stream=True)` — iterador de tokens (NDJSON da API)
 
 Retorna tuplas `(dados, erro)` com mensagens amigáveis em português.
 
@@ -121,21 +128,23 @@ sequenceDiagram
     MW->>CFG: build_prompt_with_context(agent, resumo?, mensagem)
     CFG-->>MW: full_prompt
     MW->>OC: model = ComboBox
-    MW->>MW: Exibe Gerando resposta...
-    MW->>MW: QThread OllamaGenerateWorker
-    MW->>OC: generate(full_prompt)
-    OC->>OL: POST /api/generate
-    OL-->>OC: response
-    OC-->>MW: finished (sinal)
-    MW->>MW: Substitui bloco por [CortexForge]
+    MW->>MW: Abre bloco [CortexForge]
+    MW->>MW: QThread + spinner
+    loop Tokens
+        OC->>OL: POST /api/generate (stream)
+        OL-->>OC: chunk NDJSON
+        OC-->>MW: token_received
+        MW->>MW: insertText no final
+    end
+    OC-->>MW: generation_finished
 ```
 
 **Observações:**
 
 - O chat exibe apenas a mensagem do usuário, não o system prompt completo.
 - Não há histórico de conversa: cada envio é independente.
-- Não há streaming: resposta única após conclusão da requisição.
-- A requisição roda em thread separada; a janela permanece responsiva.
+- Streaming ativo (v0.9): tokens exibidos progressivamente no chat.
+- A requisição roda em thread separada; spinner na barra de status (100 ms).
 - Com projeto aberto, o resumo do scanner entra no prompt; conteúdo dos arquivos **não** é lido.
 
 ## Dependências

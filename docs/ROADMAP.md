@@ -28,10 +28,14 @@ Planejamento por versões. Escopo sujeito a ajustes conforme o repositório evol
 - Prompt com `CONTEXTO DO PROJETO` e `PERGUNTA DO USUÁRIO`
 - Resumo exibido no painel lateral; armazenado em memória
 
-## v0.9 — Melhoria visual
+## v0.9 — Streaming de respostas ✅
 
-- Pequenos refinements de layout e usabilidade
-- Ajustes na barra de status e no painel de projetos
+- `generate(stream=True)` e tokens via `token_received`
+- Chat atualizado progressivamente; spinner na barra de status
+
+## v0.9b — Melhoria visual (planejado)
+
+- Refinements de layout e painel de projetos
 
 ## v1.0 — Primeira versão utilizável
 

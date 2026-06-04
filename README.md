@@ -15,7 +15,8 @@ O CortexForge é uma aplicação desktop com:
 - **Painel de projetos** — seleção de pasta, estatísticas e resumo automático
 - **Chat central** — mensagens do usuário e respostas do assistente (geração assíncrona)
 - **Barra superior** — modelo Ollama, agente ativo e atualização de modelos
-- **Barra de status** — Pronto / Gerando resposta... / Erro
+- **Barra de status** — Pronto / spinner + Gerando... / Erro
+- **Streaming** — respostas do Ollama exibidas token a token no chat
 
 Toda a inferência ocorre na máquina do usuário, através do Ollama em `http://localhost:11434`.
 

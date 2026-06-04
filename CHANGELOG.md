@@ -8,7 +8,16 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
 ### Planejado
 
-- Melhorias visuais e refinamentos (v0.9)
+- Primeira versão utilizável (v1.0)
+
+## [0.9.0] - 2026-06-04
+
+### Adicionado
+
+- Streaming de respostas Ollama (`stream: true` em `/api/generate`)
+- Sinais `token_received`, `generation_finished`, `generation_error` no worker
+- Atualização progressiva do chat (inserção por token, sem reescrever o histórico)
+- Spinner na barra de status (100 ms)
 
 ## [0.8.0] - 2026-06-04
 

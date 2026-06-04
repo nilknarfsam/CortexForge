@@ -5,7 +5,7 @@ Layout em três zonas: painel de projetos (esquerda), área de chat (centro)
 e campo de entrada de mensagens (inferior). Barra superior para seleção de modelo Ollama.
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
@@ -28,8 +28,7 @@ from core.project_scanner import ProjectScanResult, ProjectScanner
 from core.project_summary import ProjectSummaryBuilder, build_prompt_with_context
 from ui.ollama_worker import OllamaGenerateWorker
 
-# Bloco exibido no chat enquanto a geração está em andamento.
-_PENDING_RESPONSE_BLOCK = "[CortexForge]\nGerando resposta..."
+_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +41,11 @@ class MainWindow(QMainWindow):
         self._project_summary: str | None = None
         self._generate_worker: OllamaGenerateWorker | None = None
         self._is_generating = False
+        self._spinner_index = 0
+
+        self._spinner_timer = QTimer(self)
+        self._spinner_timer.setInterval(100)
+        self._spinner_timer.timeout.connect(self._tick_spinner)
 
         self._setup_window()
         self._build_ui()
@@ -49,7 +53,7 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self) -> None:
         """Define título, tamanho e barra de status."""
-        self.setWindowTitle("CortexForge v0.8")
+        self.setWindowTitle("CortexForge v0.9")
         self.resize(960, 640)
         self.statusBar().showMessage("Pronto")
 
@@ -266,24 +270,33 @@ class MainWindow(QMainWindow):
         """Adiciona uma mensagem formatada ao histórico visível do chat."""
         self._chat_display.append(f"[{speaker}]\n{text}")
 
-    def _show_generating_message(self) -> None:
-        """Exibe o bloco temporário de geração no chat."""
-        self._append_chat("CortexForge", "Gerando resposta...")
+    def _begin_streaming_response(self) -> None:
+        """Abre o bloco [CortexForge] no chat; tokens serão inseridos ao final."""
+        self._append_chat("CortexForge", "")
 
-    def _finalize_generating_message(self, content: str) -> None:
-        """Substitui o bloco 'Gerando resposta...' pelo texto final."""
-        text = self._chat_display.toPlainText()
-        if _PENDING_RESPONSE_BLOCK not in text:
-            self._append_chat("CortexForge", content)
-            return
-
-        updated = text.rsplit(_PENDING_RESPONSE_BLOCK, 1)[0] + (
-            f"[CortexForge]\n{content}"
-        )
-        self._chat_display.setPlainText(updated)
+    def _append_stream_token(self, token: str) -> None:
+        """Insere um token no final do documento sem reescrever o chat."""
         cursor = self._chat_display.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertText(token)
         self._chat_display.setTextCursor(cursor)
+        self._chat_display.ensureCursorVisible()
+
+    def _start_spinner(self) -> None:
+        """Inicia animação leve na barra de status (100 ms)."""
+        self._spinner_index = 0
+        self._tick_spinner()
+        self._spinner_timer.start()
+
+    def _stop_spinner(self) -> None:
+        """Para a animação do spinner."""
+        self._spinner_timer.stop()
+
+    def _tick_spinner(self) -> None:
+        """Atualiza um único caractere na barra de status."""
+        frame = _SPINNER_FRAMES[self._spinner_index % len(_SPINNER_FRAMES)]
+        self._spinner_index += 1
+        self.statusBar().showMessage(f"{frame} Gerando resposta...")
 
     def _set_generation_ui_busy(self, busy: bool) -> None:
         """Habilita ou desabilita controles durante a geração assíncrona."""
@@ -332,29 +345,38 @@ class MainWindow(QMainWindow):
 
         self._append_chat("Você", prompt)
         self._message_input.clear()
-        self._show_generating_message()
+        self._begin_streaming_response()
 
         self._set_generation_ui_busy(True)
-        self.statusBar().showMessage("Gerando resposta...")
+        self._start_spinner()
 
         worker = OllamaGenerateWorker(model, full_prompt, self)
-        worker.finished.connect(self._on_generate_finished)
-        worker.finished.connect(worker.deleteLater)
+        worker.token_received.connect(self._on_token_received)
+        worker.generation_finished.connect(self._on_generation_finished)
+        worker.generation_error.connect(self._on_generation_error)
+        worker.generation_finished.connect(worker.deleteLater)
+        worker.generation_error.connect(worker.deleteLater)
         self._generate_worker = worker
         worker.start()
 
-    def _on_generate_finished(
-        self, response: object, error: object
-    ) -> None:
-        """Atualiza o chat e a barra de status quando a thread termina."""
+    def _on_token_received(self, token: str) -> None:
+        """Acrescenta cada token ao bloco de resposta em andamento."""
+        if token:
+            self._append_stream_token(token)
+
+    def _on_generation_finished(self) -> None:
+        """Finaliza geração com sucesso."""
         self._generate_worker = None
+        self._stop_spinner()
+        self.statusBar().showMessage("Pronto")
+        self._set_generation_ui_busy(False)
+        self._message_input.setFocus()
 
-        if error:
-            self._finalize_generating_message(f"Erro: {error}")
-            self.statusBar().showMessage("Erro")
-        else:
-            self._finalize_generating_message(str(response or ""))
-            self.statusBar().showMessage("Pronto")
-
+    def _on_generation_error(self, error: str) -> None:
+        """Exibe erro no fluxo de streaming."""
+        self._generate_worker = None
+        self._stop_spinner()
+        self._append_stream_token(f"\nErro: {error}")
+        self.statusBar().showMessage("Erro")
         self._set_generation_ui_busy(False)
         self._message_input.setFocus()

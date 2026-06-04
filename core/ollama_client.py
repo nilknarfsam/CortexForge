@@ -6,6 +6,8 @@ Utiliza a API HTTP em http://localhost:11434 (tags e generate).
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Any
 
 import requests
@@ -13,6 +15,10 @@ import requests
 # Timeout curto para não travar a interface ao verificar disponibilidade.
 _DEFAULT_TIMEOUT = 5
 _GENERATE_TIMEOUT = 120
+
+
+class OllamaGenerationError(Exception):
+    """Erro durante geração (HTTP ou resposta inválida)."""
 
 
 class OllamaClient:
@@ -28,7 +34,11 @@ class OllamaClient:
         self.model: str | None = None
 
     def debug_generate_payload(
-        self, prompt: str, model: str | None = None
+        self,
+        prompt: str,
+        model: str | None = None,
+        *,
+        stream: bool = False,
     ) -> dict[str, Any]:
         """
         Retorna exatamente o JSON enviado ao endpoint /api/generate.
@@ -36,12 +46,13 @@ class OllamaClient:
         Args:
             prompt: Texto do prompt.
             model: Modelo Ollama; usa ``self.model`` se omitido.
+            stream: Se True, corresponde ao modo streaming do Ollama.
         """
         resolved_model = model if model is not None else self.model
         return {
             "model": resolved_model or "",
             "prompt": prompt,
-            "stream": False,
+            "stream": stream,
         }
 
     def is_available(self) -> tuple[bool, str]:
@@ -111,25 +122,35 @@ class OllamaClient:
         except (KeyError, TypeError, ValueError):
             return [], "Resposta inesperada do Ollama ao listar modelos."
 
-    def generate(self, prompt: str) -> tuple[str | None, str | None]:
+    def generate(
+        self, prompt: str, stream: bool = False
+    ) -> tuple[str | None, str | None] | Iterator[str]:
         """
         Gera texto a partir de um prompt (API /api/generate).
 
-        Usa o atributo ``model`` do cliente (nome do modelo no Ollama).
-
         Args:
             prompt: Texto enviado ao modelo.
+            stream: Se True, retorna um iterador de tokens; se False, resposta completa.
 
         Returns:
-            Tupla (texto gerado, mensagem de erro). Em sucesso, o erro é None.
+            Com stream=False: tupla (texto, erro).
+            Com stream=True: iterador de fragmentos de texto.
         """
+        self._validate_generate_request(prompt)
+        if stream:
+            return self._generate_stream(prompt)
+        return self._generate_blocking(prompt)
+
+    def _validate_generate_request(self, prompt: str) -> None:
+        """Valida prompt e modelo antes de chamar a API."""
         if not prompt.strip():
-            return None, "O prompt não pode estar vazio."
-
+            raise OllamaGenerationError("O prompt não pode estar vazio.")
         if not self.model or not self.model.strip():
-            return None, "Selecione um modelo antes de gerar."
+            raise OllamaGenerationError("Selecione um modelo antes de gerar.")
 
-        payload = self.debug_generate_payload(prompt)
+    def _generate_blocking(self, prompt: str) -> tuple[str | None, str | None]:
+        """Geração sem streaming (resposta única)."""
+        payload = self.debug_generate_payload(prompt, stream=False)
 
         try:
             response = requests.post(
@@ -151,18 +172,63 @@ class OllamaClient:
         except requests.exceptions.Timeout:
             return None, "A geração demorou demais e foi cancelada por tempo limite."
         except requests.exceptions.HTTPError as exc:
-            http_response = exc.response
-            status_code = (
-                http_response.status_code if http_response is not None else 0
-            )
-            body = (http_response.text if http_response is not None else "") or ""
-            self._log_http_error(status_code, body)
-            self._log_generate_context(prompt, self.model)
-            return None, f"Erro HTTP {status_code}"
+            return None, self._http_error_message(exc, prompt)
         except requests.exceptions.RequestException as exc:
             return None, f"Erro ao gerar resposta: {exc}"
         except (KeyError, TypeError, ValueError):
             return None, "Resposta inesperada do Ollama ao gerar texto."
+
+    def _generate_stream(self, prompt: str) -> Iterator[str]:
+        """Geração com streaming (um yield por token/chunk da API)."""
+        payload = self.debug_generate_payload(prompt, stream=True)
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json=payload,
+                stream=True,
+                timeout=_GENERATE_TIMEOUT,
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            message = self._http_error_message(exc, prompt)
+            raise OllamaGenerationError(message) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise OllamaGenerationError(
+                "Conexão perdida com o Ollama. Verifique se o serviço ainda está ativo."
+            ) from exc
+        except requests.exceptions.Timeout as exc:
+            raise OllamaGenerationError(
+                "A geração demorou demais e foi cancelada por tempo limite."
+            ) from exc
+        except requests.exceptions.RequestException as exc:
+            raise OllamaGenerationError(f"Erro ao gerar resposta: {exc}") from exc
+
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            try:
+                data: dict[str, Any] = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            chunk = data.get("response")
+            if chunk:
+                yield str(chunk)
+
+            if data.get("done"):
+                break
+
+    def _http_error_message(
+        self, exc: requests.exceptions.HTTPError, prompt: str
+    ) -> str:
+        """Monta mensagem amigável e registra diagnóstico no terminal."""
+        http_response = exc.response
+        status_code = http_response.status_code if http_response is not None else 0
+        body = (http_response.text if http_response is not None else "") or ""
+        self._log_http_error(status_code, body)
+        self._log_generate_context(prompt, self.model)
+        return f"Erro HTTP {status_code}"
 
     @staticmethod
     def _log_http_error(status_code: int, body: str) -> None:
