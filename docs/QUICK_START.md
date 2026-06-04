@@ -64,7 +64,7 @@ Sem pasta aberta, o chat funciona apenas com o prompt do agente.
 1. Digite no campo inferior do chat.
 2. Pressione **Enter**.
 3. A barra de status mostra **Gerando resposta...**
-4. A resposta aparece como `[CortexForge]`.
+4. A resposta aparece em streaming sob `[CortexForge]` (texto vai sendo escrito em tempo real).
 
 Exemplo:
 
