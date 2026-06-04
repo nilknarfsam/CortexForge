@@ -12,75 +12,115 @@ Oferecer um ambiente simples para conversar com modelos locais (via Ollama), usa
 
 O CortexForge é uma aplicação desktop com:
 
-- **Painel de projetos** — seleção de pasta de trabalho (a partir da v0.5)
-- **Chat central** — mensagens do usuário e respostas do assistente
+- **Painel de projetos** — seleção de pasta, estatísticas e resumo automático
+- **Chat central** — mensagens do usuário e respostas do assistente (geração assíncrona)
 - **Barra superior** — modelo Ollama, agente ativo e atualização de modelos
+- **Barra de status** — Pronto / Gerando resposta... / Erro
 
 Toda a inferência ocorre na máquina do usuário, através do Ollama em `http://localhost:11434`.
 
-## Requisitos
+## Requisitos mínimos
 
-- Python 3.10 ou superior
-- [Ollama](https://ollama.com/) instalado e em execução (`ollama serve`)
-- Pelo menos um modelo baixado (ex.: `ollama pull llama3.2`)
+| Componente | Especificação |
+|------------|---------------|
+| **CPU** | 4 núcleos |
+| **RAM** | 8 GB |
+| **Recomendado (RAM)** | **16 GB** |
+| **Python** | 3.10 ou superior |
+| **Ollama** | Instalado e em execução |
 
-## Instalação
+### Modelo recomendado
+
+```text
+qwen2.5-coder:7b
+```
 
 ```powershell
+ollama pull qwen2.5-coder:7b
+```
+
+Guia completo de instalação: **[docs/INSTALLATION.md](docs/INSTALLATION.md)**
+
+## Início rápido
+
+```powershell
+git clone https://github.com/nilknarfsam/CortexForge.git
 cd CortexForge
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-## Como executar
-
-```powershell
+ollama pull qwen2.5-coder:7b
 python app.py
 ```
 
-Certifique-se de que o Ollama está ativo antes de enviar mensagens.
+Passo a passo detalhado: **[docs/QUICK_START.md](docs/QUICK_START.md)**
 
-## Como usar
+## Como usar (resumo)
 
-1. Abra a aplicação e aguarde a verificação do Ollama na área de chat.
-2. Selecione um **modelo** na barra superior (use **Atualizar** para recarregar a lista).
-3. Escolha um **agente**: Architect, Coder ou Reviewer.
-4. (Opcional) No painel **Projetos**, clique em **Abrir Pasta** — estatísticas e **Resumo do Projeto** são gerados automaticamente.
-5. Digite sua mensagem e pressione **Enter** — com projeto aberto, o resumo é incluído no contexto enviado ao Ollama.
-6. A resposta aparecerá como `[CortexForge]` no chat (geração assíncrona; a barra inferior mostra o status).
+1. Inicie o app e confirme **Ollama está disponível** no chat.
+2. Selecione o **modelo** (ex.: `qwen2.5-coder:7b`) e clique em **Atualizar** se necessário.
+3. Escolha o **agente**: Architect, Coder ou Reviewer.
+4. (Opcional) **Abrir Pasta** no painel Projetos — exibe estatísticas e resumo no contexto do chat.
+5. Digite a mensagem e pressione **Enter**.
+
+## Estrutura interna do CortexForge
+
+```
+CortexForge/
+├── app.py                 # Entrada da aplicação
+├── core/                  # Ollama, config, scanner, resumo de projeto
+├── ui/                    # MainWindow e worker assíncrono
+├── agents/                # Prompts Architect, Coder, Reviewer
+└── docs/                  # Documentação
+```
+
+Detalhes: **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** e **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 
 ## Integração com Ollama
 
-O módulo `core/ollama_client.py` comunica-se com a API local:
-
-| Operação        | Endpoint        |
-|-----------------|-----------------|
-| Disponibilidade | `GET /api/tags` |
-| Listar modelos  | `GET /api/tags` |
+| Operação        | Endpoint           |
+|-----------------|--------------------|
+| Disponibilidade | `GET /api/tags`    |
+| Listar modelos  | `GET /api/tags`    |
 | Gerar texto     | `POST /api/generate` |
 
-Mensagens de erro são exibidas de forma amigável na interface.
+Erros HTTP são diagnosticados no terminal (status, corpo, modelo, tamanho do prompt). No chat: mensagens como `Erro HTTP 500`.
 
 ## Agentes atuais
 
-| Agente    | Arquivo              | Foco                          |
-|-----------|----------------------|-------------------------------|
-| Architect | `agents/architect.txt` | Arquitetura e design de software |
-| Coder     | `agents/coder.txt`     | Implementação e código        |
-| Reviewer  | `agents/reviewer.txt`  | Revisão e qualidade           |
+| Agente    | Arquivo                | Foco                           |
+|-----------|------------------------|--------------------------------|
+| Architect | `agents/architect.txt` | Arquitetura e design           |
+| Coder     | `agents/coder.txt`     | Implementação (padrão)         |
+| Reviewer  | `agents/reviewer.txt`  | Revisão e qualidade            |
 
-O agente padrão é **Coder**. Detalhes em [docs/AGENTS.md](docs/AGENTS.md).
+Detalhes: **[docs/AGENTS.md](docs/AGENTS.md)**
+
+## Problemas comuns
+
+| Problema | Onde ver ajuda |
+|----------|----------------|
+| Ollama não conecta | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| Erro HTTP 500 | Terminal + [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| Modelo não listado | `ollama pull qwen2.5-coder:7b` |
+| `ModuleNotFoundError` | Ativar venv e `pip install -r requirements.txt` |
+
+## Documentação
+
+| Documento | Descrição |
+|-----------|-----------|
+| [INSTALLATION.md](docs/INSTALLATION.md) | Instalação, hardware, Ollama, compartilhamento |
+| [QUICK_START.md](docs/QUICK_START.md) | Primeiros passos |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Solução de problemas |
+| [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Estrutura interna e desenvolvimento |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Módulos e fluxo do prompt |
+| [AGENTS.md](docs/AGENTS.md) | Perfis de agentes |
+| [ROADMAP.md](docs/ROADMAP.md) | Versões planejadas |
+| [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 ## Roadmap
 
-Consulte [docs/ROADMAP.md](docs/ROADMAP.md) para versões planejadas (scanner, contexto automático, UI assíncrona, v1.0).
-
-## Documentação adicional
-
-- [CHANGELOG.md](CHANGELOG.md) — histórico de versões
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — estrutura e fluxo do código
-- [docs/AGENTS.md](docs/AGENTS.md) — perfis de agentes
+Consulte [docs/ROADMAP.md](docs/ROADMAP.md) para versões planejadas (v0.9+, v1.0).
 
 ## Privacidade e execução local
 
