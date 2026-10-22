@@ -1,3 +1,14 @@
+<!-- organizacao-github:inicio -->
+> [!NOTE]
+> **📌 Organização do GitHub (22/10/2026): 📦 ARQUIVAR**
+>
+> Assistente com Ollama feito em um único dia, em junho. Ficou parado.
+>
+> **Como fazer:** Settings → lá embaixo em **Danger Zone** → **Archive this repository**. Fica só leitura e dá para desarquivar depois.
+>
+> _Nota temporária do Claude. Some quando a organização terminar._
+<!-- organizacao-github:fim -->
+
 # CortexForge
 
 Assistente desktop local de programação, construído em Python com **PySide6** e integrado ao **Ollama**.
